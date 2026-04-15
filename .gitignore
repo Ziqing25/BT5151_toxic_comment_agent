@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Large data files
+*.csv
+*.npy
+*.safetensors
+*.pt
+models/
+experiments/models/
+processed_data/
+
+# Output files
+*_output.json
+
+# macOS
+.DS_Store
+
+# Others
+.env
+.env.local
+*.pdf
