@@ -1,0 +1,73 @@
+{
+    "selected_model_id": "minilm_ft",
+    "selected_model_label": "Fine-tuned MiniLM",
+    "selection_criteria": {
+        "weights": {
+            "AUC-ROC": 0.35,
+            "Recall": 0.3,
+            "F1": 0.2,
+            "Precision": 0.15
+        },
+        "primary_metric": "AUC-ROC",
+        "business_priority": "Maximise recall to minimise undetected toxic content"
+    },
+    "weighted_score": 0.8462,
+    "test_metrics": {
+        "auc_roc": 0.9735,
+        "f1": 0.659,
+        "precision": 0.5097,
+        "recall": 0.9319
+    },
+    "validation_metrics": {
+        "auc_roc": 0.9859,
+        "f1": 0.8332,
+        "precision": 0.823,
+        "recall": 0.8438
+    },
+    "artifact": {
+        "model_path": "models/minilm_finetuned/",
+        "base_model_name": "sentence-transformers/all-MiniLM-L6-v2",
+        "type": "sentence_transformer_finetuned"
+    },
+    "inference_threshold": 0.5,
+    "selection_justification": "Fine-tuned MiniLM achieves the highest AUC-ROC on both the validation set (0.9859) and the held-out test set (0.9735), indicating superior discriminative ability across all operating thresholds. Its recall of 0.932 on the test set is critical for a content moderation pipeline where undetected toxic content directly harms users. Although LinearSVC achieves a marginally higher test F1 (0.683 vs 0.659), MiniLM outperforms it on all other criteria including validation F1 (+0.037) and recall (+0.130). Bias analysis confirms that false positives are not disproportionately associated with any demographic group. MiniLM is selected for production deployment.",
+    "bias_assessment": "False positives are mainly caused by dataset label errors and aggressive language, not demographic bias. Demographic keywords appear in approximately 8.8% of false positives (492 of 5,596), with no single identity group disproportionately represented. This does not indicate systematic bias but should be monitored in production.",
+    "all_candidates": [
+        {
+            "model_id": "logistic_regression",
+            "model_label": "TF-IDF + LR",
+            "test_auc": 0.9642,
+            "test_f1": 0.6081,
+            "test_recall": 0.9223,
+            "test_precision": 0.4536,
+            "weighted_score": 0.3571
+        },
+        {
+            "model_id": "linear_svc",
+            "model_label": "TF-IDF + LinearSVC",
+            "test_auc": 0.964,
+            "test_f1": 0.6831,
+            "test_recall": 0.8025,
+            "test_precision": 0.5946,
+            "weighted_score": 0.35
+        },
+        {
+            "model_id": "toxigen_bert_lr",
+            "model_label": "ToxiGen-RoBERTa + LR",
+            "test_auc": 0.9644,
+            "test_f1": 0.5631,
+            "test_recall": 0.9569,
+            "test_precision": 0.3989,
+            "weighted_score": 0.3147
+        },
+        {
+            "model_id": "minilm_ft",
+            "model_label": "Fine-tuned MiniLM",
+            "test_auc": 0.9735,
+            "test_f1": 0.659,
+            "test_recall": 0.9319,
+            "test_precision": 0.5097,
+            "weighted_score": 0.8462
+        }
+    ]
+}

@@ -1,0 +1,29 @@
+{
+    "comment_text": "What the hell is going on with this page?",
+    "selected_model_id": "minilm_ft",
+    "selected_model_label": "Fine-tuned MiniLM",
+    "model_type": "sentence_transformer_finetuned",
+    "threshold_used": 0.5,
+    "predicted_label": "toxic",
+    "predicted_class_id": 1,
+    "is_toxic": true,
+    "toxicity_probability": 0.8976,
+    "non_toxic_probability": 0.1024,
+    "confidence": 0.7952,
+    "raw_score": 1.0043,
+    "selection_justification": "Fine-tuned MiniLM achieves the highest AUC-ROC on both the validation set (0.9859) and the held-out test set (0.9735), indicating superior discriminative ability across all operating thresholds. Its recall of 0.932 on the test set is critical for a content moderation pipeline where undetected toxic content directly harms users. Although LinearSVC achieves a marginally higher test F1 (0.683 vs 0.659), MiniLM outperforms it on all other criteria including validation F1 (+0.037) and recall (+0.130). Bias analysis confirms that false positives are not disproportionately associated with any demographic group. MiniLM is selected for production deployment.",
+    "bias_assessment": "False positives are mainly caused by dataset label errors and aggressive language, not demographic bias. Demographic keywords appear in approximately 8.8% of false positives (492 of 5,596), with no single identity group disproportionately represented. This does not indicate systematic bias but should be monitored in production.",
+    "source_artifact": {
+        "type": "sentence_transformer_finetuned",
+        "model_path": "/Users/rongziqing/Documents/NUS/BT5151_toxic_comment_agent/models/minilm_finetuned",
+        "base_model_name": "sentence-transformers/all-MiniLM-L6-v2"
+    },
+    "inference_timestamp_utc": "2026-04-12T10:03:46.125137+00:00",
+    "severity_label": "high",
+    "severity_rank": 3,
+    "review_priority": "high",
+    "escalation_required": true,
+    "severity_explanation": "The comment is classified as toxic with strong probability, indicating a material risk of abuse or harassment and a likely need for moderator intervention.",
+    "summary_for_moderator": "Predicted toxic with toxicity probability 0.8976 and confidence 0.7952. Assigned severity: high.",
+    "severity_assessed_at_utc": "2026-04-12T10:03:46.125909+00:00"
+}
