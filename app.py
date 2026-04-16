@@ -8,7 +8,7 @@ from typing import Any
 from pipeline.graph import detect_project_root, run_pipeline
 
 
-def analyze_comment(comment_text: str) -> tuple[str, str, str, str, str, str, bool, dict[str, Any]]:
+def analyze_comment(comment_text: str) -> tuple[str, str, str, str, str, str, bool, str, dict[Any, Any]]:
     clean_text = str(comment_text).strip()
     if not clean_text:
         empty_payload = {
@@ -22,6 +22,7 @@ def analyze_comment(comment_text: str) -> tuple[str, str, str, str, str, str, bo
             "unknown",
             "Enter a comment to begin.",
             False,
+            "",
             empty_payload,
         )
 
@@ -34,6 +35,7 @@ def analyze_comment(comment_text: str) -> tuple[str, str, str, str, str, str, bo
         result.get("user_notification", "unknown"),
         result.get("ui_explanation", "No explanation available."),
         bool(result.get("human_review_required", False)),
+        result.get("warning_message", ""),
         result,
     )
 
@@ -47,7 +49,7 @@ def build_demo() -> Any:
             # BT5151 Toxic Comment Moderation Agent
 
             This demo runs the LangGraph moderation pipeline:
-            `run-inference -> assess-severity -> recommend-moderation-action`
+            `run-inference -> assess-severity -> recommend-moderation-action -> draft-warning`
             """
         )
 
@@ -78,6 +80,7 @@ def build_demo() -> Any:
                 user_notification = gr.Textbox(label="User Notification", interactive=False)
                 ui_explanation = gr.Textbox(label="UI Explanation", interactive=False, lines=4)
                 human_review_required = gr.Checkbox(label="Human Review Required", interactive=False)
+                warning_message = gr.Textbox(label="Warning Message to User", interactive=False, lines=4)
 
         raw_output = gr.JSON(label="Full Pipeline Output")
 
@@ -92,6 +95,7 @@ def build_demo() -> Any:
                 user_notification,
                 ui_explanation,
                 human_review_required,
+                warning_message,
                 raw_output,
             ],
         )
