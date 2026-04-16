@@ -28,6 +28,8 @@ except Exception:
 RANDOM_STATE = 42
 LABEL_COLS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
 PROCESSED_COLUMNS = ["id", "comment_text_clean", "toxic_label"]
+TOXIGEN_BATCH_SIZE = 128
+MINILM_BATCH_SIZE = 128
 
 EVAL_TO_TRAIN_KEY = {
     "logistic_regression": "lr",
@@ -239,7 +241,7 @@ def train_candidate_models(state: BuildState) -> BuildState:
         mask = attention_mask.unsqueeze(-1).expand(token_emb.size()).float()
         return (token_emb * mask).sum(1) / mask.sum(1)
 
-    def _encode_texts(texts: list[str], tokenizer: Any, model: Any, batch: int = 64) -> np.ndarray:
+    def _encode_texts(texts: list[str], tokenizer: Any, model: Any, batch: int = TOXIGEN_BATCH_SIZE) -> np.ndarray:
         all_emb = []
         model.eval()
         with torch.no_grad():
@@ -301,8 +303,8 @@ def train_candidate_models(state: BuildState) -> BuildState:
     train_args = TrainingArguments(
         output_dir=str(models / "minilm_finetuned"),
         num_train_epochs=3,
-        per_device_train_batch_size=128,
-        per_device_eval_batch_size=128,
+        per_device_train_batch_size=MINILM_BATCH_SIZE,
+        per_device_eval_batch_size=MINILM_BATCH_SIZE,
         warmup_ratio=0.1,
         weight_decay=0.01,
         eval_strategy="epoch",
@@ -405,7 +407,7 @@ def train_candidate_models(state: BuildState) -> BuildState:
             "lr":         {"C": best_lr_c},
             "linearsvc":  {"C": best_svc_c},
             "toxigen_lr": {"C": best_tox_c},
-            "minilm_ft":  {"epochs": 3, "batch_size": 128, "weight_decay": 0.01},
+            "minilm_ft":  {"epochs": 3, "batch_size": MINILM_BATCH_SIZE, "weight_decay": 0.01},
         },
         "artifact_paths": {
             "tfidf_vectorizer":  "models/tfidf_vectorizer.pkl",
@@ -495,7 +497,7 @@ def evaluate_candidate_models(state: BuildState) -> BuildState:
     y_pred_tox  = toxigen_lr.predict(tox_test_emb)
     y_score_tox = toxigen_lr.predict_proba(tox_test_emb)[:, 1]
 
-    raw_minilm = minilm_clf(test_texts, batch_size=128)
+    raw_minilm = minilm_clf(test_texts, batch_size=MINILM_BATCH_SIZE)
     y_pred_minilm  = np.array([1 if r["label"] == "LABEL_1" else 0 for r in raw_minilm])
     y_score_minilm = np.array([
         r["score"] if r["label"] == "LABEL_1" else 1 - r["score"]

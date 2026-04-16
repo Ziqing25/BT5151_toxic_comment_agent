@@ -90,3 +90,10 @@ def test_load_and_preprocess_data_summary(tiny_project):
     assert "n_val" in s
     assert "n_test" in s
     assert s["n_train"] + s["n_val"] == s["n_raw_train"]
+
+
+def test_transformer_batch_sizes_are_128():
+    from pipeline import build
+
+    assert build.TOXIGEN_BATCH_SIZE == 128
+    assert build.MINILM_BATCH_SIZE == 128
