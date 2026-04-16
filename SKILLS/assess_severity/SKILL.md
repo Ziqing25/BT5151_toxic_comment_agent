@@ -24,7 +24,7 @@ Invoke this skill immediately after `run-inference` has produced a binary predic
 
 ---
 
-## Inputs from Agent State
+## Inputs from Agent State (RuntimeState)
 
 | Key | Source stage | Description |
 |---|---|---|
@@ -32,7 +32,7 @@ Invoke this skill immediately after `run-inference` has produced a binary predic
 
 ---
 
-## Outputs to Agent State
+## Outputs to Agent State (RuntimeState)
 
 | Key | Type | Description |
 |---|---|---|

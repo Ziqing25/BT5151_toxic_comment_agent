@@ -13,6 +13,21 @@ description: Use when implementing the model evaluation node in the BT5151 toxic
 
 ## Node Contract
 
+## Inputs from Agent State (BuildState)
+
+| Key | Type | Description |
+|---|---|---|
+| `project_root` | `str` | Absolute path to project root |
+| `test_processed_path` | `str` | Path to `experiments/processed_data/test_set.csv` |
+| `train_metadata_path` | `str` | Path to `models/selected_model_metadata.json` |
+
+## Outputs to Agent State (BuildState)
+
+| Key | Type | Description |
+|---|---|---|
+| `evaluation_report_path` | `str` | Path to `models/evaluation_report.json` |
+| `bias_audit_path` | `str` | Path to `models/bias_audit_summary.json` |
+
 **Input** — artifacts written by `model-training`:
 
 | Source | Files |
@@ -20,12 +35,11 @@ description: Use when implementing the model evaluation node in the BT5151 toxic
 | `models/` | `tfidf_vectorizer.pkl`, `model_lr.pkl`, `model_linearsvc.pkl`, `model_toxigen_lr.pkl`, `toxigen_test_emb.npy`, `minilm_finetuned/` |
 | `processed_data/` | `test_set.csv` (columns: `id`, `comment_text_clean`, `toxic_label`) |
 
-**Output** — three JSON files consumed by `model-selection`:
+**Output** — JSON files consumed by `model-selection`:
 
 | File | Contents |
 |------|----------|
 | `evaluation_report.json` | `metrics_per_model` + `selection_candidates` |
-| `selected_model_metadata.json` | `best_model_id` + `selection_reason` |
 | `bias_audit_summary.json` | FP count, keyword counts, conclusion |
 
 ## Constants

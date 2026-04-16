@@ -13,6 +13,22 @@ description: Use when implementing the model training node in the BT5151 toxic c
 
 ## Node Contract
 
+## Inputs from Agent State (BuildState)
+
+| Key | Type | Description |
+|---|---|---|
+| `project_root` | `str` | Absolute path to project root |
+| `train_processed_path` | `str` | Path to `experiments/processed_data/train_set.csv` |
+| `val_processed_path` | `str` | Path to `experiments/processed_data/val_set.csv` |
+| `test_processed_path` | `str` | Path to `experiments/processed_data/test_set.csv` |
+
+## Outputs to Agent State (BuildState)
+
+| Key | Type | Description |
+|---|---|---|
+| `train_metadata_path` | `str` | Path to `models/selected_model_metadata.json` |
+| `candidate_model_ids` | `list[str]` | `["logistic_regression", "linear_svc", "toxigen_bert_lr", "minilm_ft"]` |
+
 **Input** (from `processed_data/`):
 
 | File | Required columns |
@@ -169,6 +185,7 @@ Save `models/selected_model_metadata.json` with:
 ```
 
 Selection criterion: **highest test F1** (balances precision/recall for content moderation).
+Final production selection is handled by the downstream `select-model` node.
 
 ## Common Mistakes
 

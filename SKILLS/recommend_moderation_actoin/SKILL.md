@@ -24,7 +24,7 @@ Invoke this skill after `assess-severity` has assigned a severity label and revi
 
 ---
 
-## Inputs from Agent State
+## Inputs from Agent State (RuntimeState)
 
 | Key | Source stage | Description |
 |---|---|---|
@@ -32,7 +32,7 @@ Invoke this skill after `assess-severity` has assigned a severity label and revi
 
 ---
 
-## Outputs to Agent State
+## Outputs to Agent State (RuntimeState)
 
 | Key | Type | Description |
 |---|---|---|
@@ -112,6 +112,9 @@ The primary output is `moderation_action_output.json`. Example structure:
 
 ## Notes
 
+- This node is **deterministic and policy-based**. It does not call any LLM.
+- The `draft-warning` node downstream is responsible for LLM-generated user messaging.
+- `action_code` must remain stable across calls for the same `severity_label`.
 - This stage is intentionally rule-based so the policy logic is easy to explain and audit in the technical report.
 - The Gradio interface should display the action recommendation and business explanation, not just the raw model output.
 - `allow_with_monitoring` is designed for borderline cases where the system should remain cautious without over-moderating benign content.

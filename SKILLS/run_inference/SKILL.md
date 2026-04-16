@@ -30,7 +30,7 @@ Invoke this skill after `select-model` has written the final deployment decision
 
 ---
 
-## Inputs from Agent State
+## Inputs from Agent State (RuntimeState)
 
 | Key | Source stage | Description |
 |---|---|---|
@@ -40,7 +40,7 @@ Invoke this skill after `select-model` has written the final deployment decision
 
 ---
 
-## Outputs to Agent State
+## Outputs to Agent State (RuntimeState)
 
 | Key | Type | Description |
 |---|---|---|

@@ -16,9 +16,9 @@ Invoke this skill **after** `evaluate-models` has computed per-model metrics on 
 
 ## How to Execute
 
-1. Load `evaluation_report.json` from the `evaluate-models` output directory — this contains test-set Precision, Recall, F1, and AUC-ROC for all four candidate models.
-2. Load `selected_model_metadata.json` from the `train-models` output directory — this provides validation-set metrics, best hyperparameters, and file paths to all model artefacts.
-3. Load `bias_audit_summary.json` from the `evaluate-models` output directory — this contains false-positive demographic analysis.
+1. Load `evaluation_report_path` from the `evaluate-models` output — this contains test-set Precision, Recall, F1, and AUC-ROC for all four candidate models.
+2. Load `train_metadata_path` from the `train-models` output — this provides validation-set metrics, best hyperparameters, and file paths to all model artefacts.
+3. Load `bias_audit_path` from the `evaluate-models` output — this contains false-positive demographic analysis.
 4. Build a unified comparison table covering both the validation and test sets.
 5. Apply the weighted scoring formula (see Scoring Criteria below) to rank candidates.
 6. Cross-check that the ranking is consistent between validation and test sets.
@@ -27,30 +27,23 @@ Invoke this skill **after** `evaluate-models` has computed per-model metrics on 
 
 ---
 
-## Inputs from Agent State
+## Inputs from Agent State (BuildState)
 
 | Key | Source stage | Description |
 |---|---|---|
-| `evaluation_report.json` | `evaluate-models` | Per-model test-set metrics: F1, AUC-ROC, Precision, Recall for all four candidates |
-| `bias_audit_summary.json` | `evaluate-models` | False-positive count, demographic keyword frequencies, and bias conclusion |
-| `selected_model_metadata.json` | `train-models` | Validation-set metrics, hyperparameters, dataset split sizes, and artefact file paths |
+| `evaluation_report_path` | `evaluate-models` | Path to per-model test-set metrics: F1, AUC-ROC, Precision, Recall for all four candidates |
+| `bias_audit_path` | `evaluate-models` | Path to false-positive count, demographic keyword frequencies, and bias conclusion |
+| `train_metadata_path` | `train-models` | Path to validation-set metrics, hyperparameters, dataset split sizes, and artefact file paths |
 
 ---
 
-## Outputs to Agent State
+## Outputs to Agent State (BuildState)
 
 | Key | Type | Description |
 |---|---|---|
-| `selected_model_id` | `string` | Internal identifier of the selected model (e.g. `minilm_ft`) |
-| `selected_model_label` | `string` | Human-readable model name (e.g. `Fine-tuned MiniLM`) |
-| `weighted_score` | `float` | Composite normalised score from the multi-criteria ranking |
-| `test_metrics` | `object` | AUC-ROC, F1, Precision, Recall of the selected model on the test set |
-| `validation_metrics` | `object` | AUC-ROC, F1, Precision, Recall of the selected model on the validation set |
-| `artifact` | `object` | Model file path(s) and type flag (e.g. `sentence_transformer_finetuned`) for the inference stage to load |
-| `inference_threshold` | `float` | Decision threshold (default `0.5`) passed to the inference stage |
-| `selection_justification` | `string` | Plain-language explanation of the decision for the technical report |
-| `bias_assessment` | `string` | Fairness conclusion from the bias audit |
-| `all_candidates` | `array` | Full scores for every candidate model (for transparency and the technical report) |
+| `select_model_output_path` | `str` | Path to `select_model_output.json` (project root) |
+| `selected_model_id` | `str` | e.g. `"minilm_ft"` |
+| `selection_justification` | `str` | Plain-language rationale |
 
 ---
 
