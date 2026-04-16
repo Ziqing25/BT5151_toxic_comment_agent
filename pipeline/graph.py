@@ -9,9 +9,6 @@ from typing import Any
 
 from .state import RuntimeState, build_initial_runtime_state
 
-AgentState = RuntimeState
-build_initial_state = build_initial_runtime_state
-
 try:
     from openai import OpenAI
 except ImportError:  # pragma: no cover
@@ -52,7 +49,7 @@ def dump_json(path: Path, payload: dict[str, Any]) -> None:
         json.dump(payload, f, indent=4, ensure_ascii=False)
 
 
-def resolve_project_path(state: AgentState, key: str, default_relative: str) -> Path:
+def resolve_project_path(state: RuntimeState, key: str, default_relative: str) -> Path:
     project_root = Path(state.get("project_root") or detect_project_root())
     raw = state.get(key)
     if raw:
@@ -185,7 +182,7 @@ def mean_pool(model_output: Any, attention_mask: Any) -> Any:
     return (token_embeddings * mask).sum(1) / torch.clamp(mask.sum(1), min=1e-9)
 
 
-def get_artifact_config(selection_state: dict[str, Any], train_meta: dict[str, Any], state: AgentState) -> dict[str, Any]:
+def get_artifact_config(selection_state: dict[str, Any], train_meta: dict[str, Any], state: RuntimeState) -> dict[str, Any]:
     project_root = Path(state.get("project_root") or detect_project_root())
     model_id = selection_state["selected_model_id"]
     artifact = dict(selection_state.get("artifact", {}))
@@ -309,7 +306,7 @@ def predict_with_finetuned_transformer(text: str, artifact_cfg: dict[str, Any]) 
     return toxic_prob, raw_score
 
 
-def run_inference_node(state: AgentState) -> AgentState:
+def run_inference_node(state: RuntimeState) -> RuntimeState:
     comment_text = sanitize_text(state["comment_text"])
     selection_path = resolve_project_path(state, "select_model_output_path", "select_model_output.json")
     train_metadata_path = resolve_project_path(state, "train_metadata_path", "models/selected_model_metadata.json")
@@ -331,7 +328,7 @@ def run_inference_node(state: AgentState) -> AgentState:
         raise ValueError(f"Unsupported artifact type: {model_type}")
 
     is_toxic = bool(toxic_prob >= threshold)
-    payload: AgentState = {
+    payload: RuntimeState = {
         "comment_text": comment_text,
         "selected_model_id": selection_state["selected_model_id"],
         "selected_model_label": selection_state.get("selected_model_label", ""),
@@ -353,7 +350,7 @@ def run_inference_node(state: AgentState) -> AgentState:
     return payload
 
 
-def assess_severity_node(state: AgentState) -> AgentState:
+def assess_severity_node(state: RuntimeState) -> RuntimeState:
     toxicity_probability = float(state["toxicity_probability"])
     confidence = float(state["confidence"])
     is_toxic = bool(state["is_toxic"])
@@ -402,7 +399,7 @@ def assess_severity_node(state: AgentState) -> AgentState:
         f"and confidence {confidence:.4f}. Assigned severity: {severity_label}."
     )
 
-    payload: AgentState = {
+    payload: RuntimeState = {
         "severity_label": severity_label,
         "severity_rank": severity_rank,
         "review_priority": review_priority,
@@ -416,7 +413,7 @@ def assess_severity_node(state: AgentState) -> AgentState:
     return payload
 
 
-def recommend_moderation_action_node(state: AgentState) -> AgentState:
+def recommend_moderation_action_node(state: RuntimeState) -> RuntimeState:
     severity_label = state["severity_label"]
     toxicity_probability = float(state["toxicity_probability"])
     confidence = float(state["confidence"])
@@ -470,7 +467,7 @@ def recommend_moderation_action_node(state: AgentState) -> AgentState:
         moderator_rationale = "The comment shows a very strong toxic signal and should be removed immediately with escalation to urgent moderator attention."
         business_message = "Remove the comment immediately and escalate the case to the urgent moderation queue."
 
-    payload: AgentState = {
+    payload: RuntimeState = {
         "action_code": action_code,
         "action_label": action_label,
         "action_priority": action_priority,
@@ -490,32 +487,35 @@ def recommend_moderation_action_node(state: AgentState) -> AgentState:
     return payload
 
 
-def build_graph() -> Any:
+def compile_runtime_graph() -> Any:
     if StateGraph is None:
         raise ImportError("langgraph is not installed. Install it before compiling the graph.")
 
-    graph = StateGraph(AgentState)
-    graph.add_node("run-inference", run_inference_node)
-    graph.add_node("assess-severity", assess_severity_node)
+    graph = StateGraph(RuntimeState)
+    graph.add_node("run-inference",               run_inference_node)
+    graph.add_node("assess-severity",             assess_severity_node)
     graph.add_node("recommend-moderation-action", recommend_moderation_action_node)
-    graph.add_edge(START, "run-inference")
-    graph.add_edge("run-inference", "assess-severity")
-    graph.add_edge("assess-severity", "recommend-moderation-action")
-    graph.add_edge("recommend-moderation-action", END)
+    graph.add_node("draft-warning",               draft_warning_node)
+    graph.add_edge(START,                         "run-inference")
+    graph.add_edge("run-inference",               "assess-severity")
+    graph.add_edge("assess-severity",             "recommend-moderation-action")
+    graph.add_edge("recommend-moderation-action", "draft-warning")
+    graph.add_edge("draft-warning",               END)
     return graph.compile()
 
 
-def run_pipeline(comment_text: str, initial_state: AgentState | None = None) -> AgentState:
-    state = build_initial_state(comment_text, initial_state.get("project_root") if initial_state else None)
+def run_pipeline(comment_text: str, initial_state: RuntimeState | None = None) -> RuntimeState:
+    state = build_initial_runtime_state(comment_text, initial_state.get("project_root") if initial_state else None)
     if initial_state:
         state.update(initial_state)
 
     if StateGraph is not None:
-        app = build_graph()
+        app = compile_runtime_graph()
         return app.invoke(state)
 
     current = dict(state)
     current.update(run_inference_node(current))
     current.update(assess_severity_node(current))
     current.update(recommend_moderation_action_node(current))
+    current.update(draft_warning_node(current))
     return current
