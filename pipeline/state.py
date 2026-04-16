@@ -1,8 +1,10 @@
+# pipeline/state.py
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
+# ── Shared literal types ───────────────────────────────────────────────────────
 
 SeverityLabel = Literal["clean", "borderline", "low", "medium", "high", "critical"]
 ReviewPriority = Literal["none", "low", "medium", "high", "urgent"]
@@ -17,7 +19,37 @@ ActionCode = Literal[
 UserNotification = Literal["none", "gentle_warning", "warning", "final_warning"]
 
 
-class AgentState(TypedDict, total=False):
+# ── Build layer state (offline ML pipeline) ───────────────────────────────────
+
+class BuildState(TypedDict, total=False):
+    # Inputs
+    project_root: str
+    raw_train_path: str
+    raw_test_path: str
+
+    # preprocess-data outputs
+    train_processed_path: str      # experiments/processed_data/train_set.csv
+    val_processed_path: str        # experiments/processed_data/val_set.csv
+    test_processed_path: str       # experiments/processed_data/test_set.csv
+    preprocessing_summary: dict[str, Any]
+
+    # train-models outputs
+    train_metadata_path: str       # models/selected_model_metadata.json
+    candidate_model_ids: list[str]
+
+    # evaluate-models outputs
+    evaluation_report_path: str    # models/evaluation_report.json
+    bias_audit_path: str           # models/bias_audit_summary.json
+
+    # select-model outputs
+    select_model_output_path: str  # select_model_output.json (project root)
+    selected_model_id: str
+    selection_justification: str
+
+
+# ── Runtime layer state (online moderation pipeline) ─────────────────────────
+
+class RuntimeState(TypedDict, total=False):
     # Runtime input
     comment_text: str
     project_root: str
@@ -67,9 +99,38 @@ class AgentState(TypedDict, total=False):
     ui_explanation: str
     action_recommended_at_utc: str
 
+    # Draft warning output (new)
+    warning_message: str
+    warning_skipped: bool
+    warning_generated_at_utc: str
 
-def build_initial_state(comment_text: str, project_root: str | Path | None = None) -> AgentState:
-    state: AgentState = {"comment_text": comment_text}
+
+# ── Constructor helpers ────────────────────────────────────────────────────────
+
+def build_initial_build_state(
+    project_root: str | Path,
+    raw_train_path: str | Path | None = None,
+    raw_test_path: str | Path | None = None,
+) -> BuildState:
+    root = Path(project_root).resolve()
+    state: BuildState = {"project_root": str(root)}
+    state["raw_train_path"] = (
+        str(Path(raw_train_path).resolve())
+        if raw_train_path is not None
+        else str(root / "raw_data" / "train.csv")
+    )
+    state["raw_test_path"] = (
+        str(Path(raw_test_path).resolve())
+        if raw_test_path is not None
+        else str(root / "raw_data" / "test.csv")
+    )
+    return state
+
+
+def build_initial_runtime_state(
+    comment_text: str, project_root: str | Path | None = None
+) -> RuntimeState:
+    state: RuntimeState = {"comment_text": comment_text}
     if project_root is not None:
         state["project_root"] = str(Path(project_root).resolve())
     return state
