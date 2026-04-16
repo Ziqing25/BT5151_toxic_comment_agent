@@ -561,3 +561,162 @@ def evaluate_candidate_models(state: BuildState) -> BuildState:
         "evaluation_report_path": str(eval_path),
         "bias_audit_path":        str(bias_path),
     }
+
+
+# ── Plain function 4: Model selection ─────────────────────────────────────────
+
+def select_best_model(state: BuildState) -> BuildState:
+    """Apply weighted scoring; record justified selection; write select_model_output.json."""
+    root = Path(state["project_root"])
+
+    with open(state["evaluation_report_path"]) as f:
+        eval_report = json.load(f)
+    with open(state["bias_audit_path"]) as f:
+        bias_audit = json.load(f)
+    with open(state["train_metadata_path"]) as f:
+        train_meta = json.load(f)
+
+    # Build test-set score table
+    score_rows: dict[str, dict[str, float]] = {}
+    for eval_key in EVAL_TO_TRAIN_KEY:
+        m = eval_report["metrics_per_model"][eval_key]
+        score_rows[eval_key] = {
+            "AUC-ROC":   m["auc"],
+            "Recall":    m["recall"],
+            "F1":        m["f1"],
+            "Precision": m["precision"],
+        }
+
+    # Min-max normalisation across candidates
+    norm_rows: dict[str, dict[str, float]] = {k: dict(v) for k, v in score_rows.items()}
+    for metric in ["AUC-ROC", "Recall", "F1", "Precision"]:
+        vals = [score_rows[k][metric] for k in score_rows]
+        mn, mx = min(vals), max(vals)
+        for k in norm_rows:
+            norm_rows[k][metric] = (score_rows[k][metric] - mn) / (mx - mn) if mx > mn else 1.0
+
+    for k in norm_rows:
+        norm_rows[k]["weighted_score"] = sum(
+            norm_rows[k][metric] * weight for metric, weight in WEIGHTS.items()
+        )
+
+    best_id = max(norm_rows, key=lambda k: norm_rows[k]["weighted_score"])
+
+    # Collect best model info
+    best_test_m = eval_report["metrics_per_model"][best_id]
+    best_train_key = EVAL_TO_TRAIN_KEY[best_id]
+    best_val_m  = train_meta["validation_metrics"][best_train_key]
+
+    artifact_paths = train_meta["artifact_paths"]
+    model_artifacts = {
+        "logistic_regression": {
+            "model_path":      artifact_paths["model_lr"],
+            "vectorizer_path": artifact_paths["tfidf_vectorizer"],
+            "type":            "tfidf_sklearn",
+        },
+        "linear_svc": {
+            "model_path":      artifact_paths["model_linearsvc"],
+            "vectorizer_path": artifact_paths["tfidf_vectorizer"],
+            "type":            "tfidf_sklearn",
+        },
+        "toxigen_bert_lr": {
+            "model_path":      artifact_paths["model_toxigen_lr"],
+            "base_model_name": train_meta["toxigen_model_name"],
+            "type":            "bert_embedding_lr",
+        },
+        "minilm_ft": {
+            "model_path":      artifact_paths["minilm_finetuned"],
+            "base_model_name": train_meta["minilm_model_name"],
+            "type":            "sentence_transformer_finetuned",
+        },
+    }
+
+    output: dict[str, Any] = {
+        "selected_model_id":    best_id,
+        "selected_model_label": MODEL_LABELS[best_id],
+        "selection_criteria": {
+            "weights":           WEIGHTS,
+            "primary_metric":    "AUC-ROC",
+            "business_priority": "Maximise recall to minimise undetected toxic content",
+        },
+        "weighted_score":  round(norm_rows[best_id]["weighted_score"], 4),
+        "test_metrics": {
+            "auc_roc":   round(best_test_m["auc"],       4),
+            "f1":        round(best_test_m["f1"],        4),
+            "precision": round(best_test_m["precision"], 4),
+            "recall":    round(best_test_m["recall"],    4),
+        },
+        "validation_metrics": {
+            "auc_roc":   round(best_val_m["roc_auc"],   4),
+            "f1":        round(best_val_m["f1"],        4),
+            "precision": round(best_val_m["precision"], 4),
+            "recall":    round(best_val_m["recall"],    4),
+        },
+        "artifact":            model_artifacts[best_id],
+        "inference_threshold": float(train_meta.get("threshold", 0.5)),
+        "selection_justification": (
+            f"{MODEL_LABELS[best_id]} achieves the highest weighted score "
+            f"({norm_rows[best_id]['weighted_score']:.4f}) across AUC-ROC, Recall, F1, and Precision "
+            f"on the held-out test set, with AUC-ROC={best_test_m['auc']:.4f} and "
+            f"Recall={best_test_m['recall']:.4f}."
+        ),
+        "bias_assessment": bias_audit["conclusion"],
+        "all_candidates": [
+            {
+                "model_id":       k,
+                "model_label":    MODEL_LABELS[k],
+                "test_auc":       round(eval_report["metrics_per_model"][k]["auc"],       4),
+                "test_f1":        round(eval_report["metrics_per_model"][k]["f1"],        4),
+                "test_recall":    round(eval_report["metrics_per_model"][k]["recall"],    4),
+                "test_precision": round(eval_report["metrics_per_model"][k]["precision"], 4),
+                "weighted_score": round(norm_rows[k]["weighted_score"], 4),
+            }
+            for k in EVAL_TO_TRAIN_KEY
+        ],
+    }
+
+    output_path = root / "select_model_output.json"
+    with open(output_path, "w") as f:
+        json.dump(output, f, indent=4)
+
+    return {
+        "select_model_output_path": str(output_path),
+        "selected_model_id":        best_id,
+        "selection_justification":  output["selection_justification"],
+    }
+
+
+# ── LangGraph node wrappers ────────────────────────────────────────────────────
+
+def preprocess_data_node(state: BuildState) -> BuildState:
+    return load_and_preprocess_data(state)
+
+
+def train_models_node(state: BuildState) -> BuildState:
+    return train_candidate_models(state)
+
+
+def evaluate_models_node(state: BuildState) -> BuildState:
+    return evaluate_candidate_models(state)
+
+
+def select_model_node(state: BuildState) -> BuildState:
+    return select_best_model(state)
+
+
+# ── Graph compiler ────────────────────────────────────────────────────────────
+
+def compile_build_graph() -> Any:
+    if StateGraph is None:
+        raise ImportError("langgraph is not installed.")
+    graph = StateGraph(BuildState)
+    graph.add_node("preprocess-data",  preprocess_data_node)
+    graph.add_node("train-models",     train_models_node)
+    graph.add_node("evaluate-models",  evaluate_models_node)
+    graph.add_node("select-model",     select_model_node)
+    graph.add_edge(START, "preprocess-data")
+    graph.add_edge("preprocess-data",  "train-models")
+    graph.add_edge("train-models",     "evaluate-models")
+    graph.add_edge("evaluate-models",  "select-model")
+    graph.add_edge("select-model",     END)
+    return graph.compile()
