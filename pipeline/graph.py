@@ -7,7 +7,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .state import AgentState, build_initial_state
+from .state import RuntimeState, build_initial_runtime_state
+
+AgentState = RuntimeState
+build_initial_state = build_initial_runtime_state
+
+try:
+    from openai import OpenAI
+except ImportError:  # pragma: no cover
+    OpenAI = None  # type: ignore[assignment,misc]
 
 try:
     from langgraph.graph import END, START, StateGraph
@@ -70,6 +78,103 @@ def sigmoid(x: float) -> float:
 
 def probability_to_confidence(prob: float) -> float:
     return round(abs(prob - 0.5) * 2.0, 4)
+
+
+# ── Warning-generation helpers ─────────────────────────────────────────────────
+
+_FALLBACK_WARNINGS: dict[str, str] = {
+    "soft_warn": (
+        "Hi, we noticed your recent comment may not meet our community guidelines. "
+        "Please keep conversations respectful and constructive. Thank you."
+    ),
+    "review_and_warn": (
+        "Your comment has been flagged for review and is temporarily under moderation. "
+        "If it violates our community standards, it may be removed. "
+        "We ask that you review our community guidelines before posting again."
+    ),
+    "hide_and_review": (
+        "Your comment has been temporarily hidden pending a moderator review. "
+        "Comments that violate our community standards will be removed. "
+        "Repeated violations may result in account restrictions."
+    ),
+    "remove_and_escalate": (
+        "Your comment has been removed for violating our community guidelines. "
+        "This is a final warning - further violations will result in account suspension. "
+        "Please review our community standards."
+    ),
+}
+
+
+def _get_openai_key() -> str:
+    import os
+    key = os.environ.get("OPENAI_API_KEY", "")
+    if not key:
+        raise RuntimeError(
+            "OPENAI_API_KEY environment variable is not set. "
+            "In Google Colab, set it with: "
+            "os.environ['OPENAI_API_KEY'] = userdata.get('OPENAI_API_KEY')"
+        )
+    return key
+
+
+def _build_warning_prompt(state: RuntimeState) -> str:
+    """Build the OpenAI prompt. Raw comment text is intentionally excluded."""
+    action_code  = state.get("action_code", "")
+    severity     = state.get("severity_label", "")
+    action_label = state.get("action_label", "")
+    return (
+        f"You are a trust-and-safety moderator writing a user-facing warning message.\n\n"
+        f"The moderation system has assessed this situation:\n"
+        f"- Severity level: {severity}\n"
+        f"- Recommended action: {action_label} (code: {action_code})\n\n"
+        f"Write a single short paragraph (2-3 sentences) addressed directly to the user. "
+        f"The message should:\n"
+        f"1. Inform them their comment was flagged\n"
+        f"2. Ask them to follow community guidelines\n"
+        f"3. Mention consequences proportional to severity ({severity})\n\n"
+        f"Use a professional, non-hostile tone. Do not repeat the original comment text. "
+        f"Do not use threats. Output only the warning message text, nothing else."
+    )
+
+
+def _fallback_warning(state: RuntimeState) -> str:
+    action_code = state.get("action_code", "")
+    return _FALLBACK_WARNINGS.get(
+        action_code,
+        "Your comment has been flagged for review. Please follow our community guidelines.",
+    )
+
+
+def draft_warning_node(state: RuntimeState) -> RuntimeState:
+    action_code = state.get("action_code", "allow")
+
+    if action_code in ("allow", "allow_with_monitoring"):
+        return {
+            "warning_message":          "",
+            "warning_skipped":          True,
+            "warning_generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        }
+
+    try:
+        if OpenAI is None:
+            raise ImportError("openai is not installed")
+        client = OpenAI(api_key=_get_openai_key())
+        prompt = _build_warning_prompt(state)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.4,
+        )
+        message = response.choices[0].message.content.strip()
+    except Exception:
+        message = _fallback_warning(state)
+
+    return {
+        "warning_message":          message,
+        "warning_skipped":          False,
+        "warning_generated_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def mean_pool(model_output: Any, attention_mask: Any) -> Any:
